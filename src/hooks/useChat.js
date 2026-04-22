@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { getConversation, streamChat } from '../services/api.js'
+import { getConversation, streamChat, deleteMessagesFrom } from '../services/api.js'
 
 export function useChat(conversationId, model, onTitleUpdate) {
   const [messages, setMessages] = useState([])
@@ -82,5 +82,19 @@ export function useChat(conversationId, model, onTitleUpdate) {
     setStreaming(false)
   }, [])
 
-  return { messages, streaming, loading, send, stop }
+  const editAndResend = useCallback(async (messageId, newContent) => {
+    if (!conversationId || !newContent.trim() || streaming) return
+    setMessages((prev) => {
+      const idx = prev.findIndex((m) => m.id === messageId)
+      return idx === -1 ? prev : prev.slice(0, idx)
+    })
+    try {
+      await deleteMessagesFrom(conversationId, messageId)
+    } catch (err) {
+      console.error('Failed to clear messages from DB', err)
+    }
+    await send(newContent)
+  }, [conversationId, streaming, send])
+
+  return { messages, streaming, loading, send, stop, editAndResend }
 }

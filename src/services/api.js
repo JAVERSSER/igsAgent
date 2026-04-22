@@ -32,6 +32,32 @@ export async function deleteConversation(id) {
   if (!res.ok) throw new Error('Failed to delete conversation')
 }
 
+export async function shareConversation(id) {
+  const res = await fetch(`/api/conversations/${id}/share`, { method: 'POST' })
+  if (!res.ok) throw new Error('Failed to generate share link')
+  return res.json()
+}
+
+export async function getSharedConversation(token) {
+  const res = await fetch(`/api/share/${token}`)
+  if (!res.ok) throw new Error('Shared conversation not found')
+  return res.json()
+}
+
+export async function uploadFile(file, conversationId) {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('conversation_id', conversationId)
+  const res = await fetch('/api/upload', { method: 'POST', body: form })
+  if (!res.ok) throw new Error('Upload failed')
+  return res.json()
+}
+
+export async function deleteMessagesFrom(conversationId, messageId) {
+  const res = await fetch(`/api/conversations/${conversationId}/messages/from/${messageId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error('Failed to delete messages')
+}
+
 export async function renameConversation(id, title) {
   const res = await fetch(`/api/conversations/${id}`, {
     method: 'PATCH',

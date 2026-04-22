@@ -5,6 +5,14 @@
 html, body, #root {
   height: 100%;
   background: #ffffff;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+html.dark, html.dark body, html.dark #root {
+  background: #212121;
 }
 
 * {

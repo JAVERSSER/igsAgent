@@ -74,4 +74,37 @@ router.delete('/:id', async (req, res) => {
   }
 })
 
+// Generate or return existing share token
+router.post('/:id/share', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE conversations
+       SET share_token = COALESCE(share_token, gen_random_uuid())
+       WHERE id = $1 RETURNING share_token`,
+      [req.params.id]
+    )
+    if (!result.rows.length) return res.status(404).json({ error: 'Not found' })
+    res.json({ token: result.rows[0].share_token })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+router.delete('/:id/messages/from/:msgId', async (req, res) => {
+  try {
+    const msg = await pool.query(
+      'SELECT created_at FROM messages WHERE id = $1 AND conversation_id = $2',
+      [req.params.msgId, req.params.id]
+    )
+    if (!msg.rows.length) return res.status(404).json({ error: 'Not found' })
+    await pool.query(
+      'DELETE FROM messages WHERE conversation_id = $1 AND created_at >= $2',
+      [req.params.id, msg.rows[0].created_at]
+    )
+    res.status(204).end()
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 export default router

@@ -6,6 +6,8 @@ import chatRouter from './routes/chat.js'
 import conversationsRouter from './routes/conversations.js'
 import modelsRouter from './routes/models.js'
 import improveRouter from './routes/improve.js'
+import shareRouter from './routes/share.js'
+import uploadRouter from './routes/upload.js'
 
 dotenv.config()
 
@@ -19,6 +21,8 @@ app.use('/api/chat', chatRouter)
 app.use('/api/conversations', conversationsRouter)
 app.use('/api/models', modelsRouter)
 app.use('/api/improve', improveRouter)
+app.use('/api/share', shareRouter)
+app.use('/api/upload', uploadRouter)
 
 async function start() {
   try {

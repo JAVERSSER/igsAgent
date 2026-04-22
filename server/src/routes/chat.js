@@ -4,6 +4,49 @@ import { streamChat } from '../services/ollama.js'
 
 const router = Router()
 
+async function getFileContext(conversationId, userQuery) {
+  // Try vector RAG first, fall back to full-document injection
+  try {
+    const { default: fetch2 } = await import('node-fetch').catch(() => ({ default: fetch }))
+    const embRes = await fetch('http://localhost:11434/api/embeddings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'nomic-embed-text', prompt: userQuery }),
+    })
+    if (embRes.ok) {
+      const { embedding } = await embRes.json()
+      if (embedding) {
+        const chunks = await pool.query(
+          `SELECT content FROM document_chunks
+           WHERE conversation_id = $1
+           ORDER BY embedding <=> $2::vector
+           LIMIT 6`,
+          [conversationId, JSON.stringify(embedding)]
+        )
+        if (chunks.rows.length) {
+          return chunks.rows.map((r) => r.content).join('\n\n---\n\n')
+        }
+      }
+    }
+  } catch { /* pgvector or embedding model not available */ }
+
+  // Fallback: use full attachment content
+  try {
+    const atts = await pool.query(
+      `SELECT file_name, content FROM attachments
+       WHERE conversation_id = $1 AND content IS NOT NULL`,
+      [conversationId]
+    )
+    if (atts.rows.length) {
+      return atts.rows
+        .map((a) => `[File: ${a.file_name}]\n${a.content}`)
+        .join('\n\n---\n\n')
+    }
+  } catch { /* no attachments table */ }
+
+  return null
+}
+
 router.post('/', async (req, res) => {
   const { conversation_id, content, model = 'llama3' } = req.body
 
@@ -34,9 +77,17 @@ router.post('/', async (req, res) => {
       [conversation_id]
     )
 
+    const fileContext = await getFileContext(conversation_id, content)
+
     const messages = []
     if (conv.rows[0]?.system_prompt) {
       messages.push({ role: 'system', content: conv.rows[0].system_prompt })
+    }
+    if (fileContext) {
+      messages.push({
+        role: 'system',
+        content: `The user has uploaded the following document(s). Use them to answer questions:\n\n${fileContext}`,
+      })
     }
     messages.push(...historyResult.rows)
 
