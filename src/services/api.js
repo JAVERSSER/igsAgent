@@ -102,11 +102,11 @@ export async function improveText({ text, model, onToken, onDone, signal }) {
   onDone()
 }
 
-export async function streamChat({ conversationId, content, model, onToken, onDone, signal }) {
+export async function streamChat({ conversationId, content, model, attachmentIds = [], onToken, onDone, signal }) {
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ conversation_id: conversationId, content, model }),
+    body: JSON.stringify({ conversation_id: conversationId, content, model, attachment_ids: attachmentIds }),
     signal,
   })
 

@@ -7,7 +7,6 @@ const router = Router()
 async function getFileContext(conversationId, userQuery) {
   // Try vector RAG first, fall back to full-document injection
   try {
-    const { default: fetch2 } = await import('node-fetch').catch(() => ({ default: fetch }))
     const embRes = await fetch('http://localhost:11434/api/embeddings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -48,10 +47,10 @@ async function getFileContext(conversationId, userQuery) {
 }
 
 router.post('/', async (req, res) => {
-  const { conversation_id, content, model = 'llama3' } = req.body
+  const { conversation_id, content = '', model = 'llama3' } = req.body
 
-  if (!conversation_id || !content) {
-    return res.status(400).json({ error: 'conversation_id and content required' })
+  if (!conversation_id) {
+    return res.status(400).json({ error: 'conversation_id required' })
   }
 
   res.setHeader('Content-Type', 'text/event-stream')

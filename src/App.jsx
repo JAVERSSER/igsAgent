@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar.jsx'
 import ChatWindow from './components/ChatWindow.jsx'
 import InputBar from './components/InputBar.jsx'
 import ModelSelector from './components/ModelSelector.jsx'
+import ExportMenu from './components/ExportMenu.jsx'
 import { useConversations } from './hooks/useConversations.js'
 import { useChat } from './hooks/useChat.js'
 import { getConversations } from './services/api.js'
@@ -44,30 +45,34 @@ export default function App() {
     loading: convsLoading, create, remove, rename, updateTitle,
   } = useConversations()
 
+  const activeConversation = conversations.find((c) => c.id === activeId)
+
   const handleTitleUpdate = useCallback(async (id) => {
     const data = await getConversations()
     const found = data.find((c) => c.id === id)
     if (found) updateTitle(id, found.title)
   }, [updateTitle])
 
-  const { messages, streaming, loading: chatLoading, send, stop, editAndResend } = useChat(
+  const { messages, streaming, loading: chatLoading, send, stop, editAndResend, skipNextLoad } = useChat(
     activeId, model, handleTitleUpdate
   )
 
   const hasMessages = messages.length > 0
   const pendingMessageRef = useRef(null)
+  const pendingAttachmentsRef = useRef([])
 
   useEffect(() => {
-    if (activeId && pendingMessageRef.current) {
+    if (activeId && pendingMessageRef.current !== null) {
       const text = pendingMessageRef.current
+      const attachments = pendingAttachmentsRef.current
       pendingMessageRef.current = null
-      send(text)
+      pendingAttachmentsRef.current = []
+      send(text, attachments)
     }
   }, [activeId])
 
-  const handleNewChat = async () => {
-    const conv = await create(model)
-    setActiveId(conv.id)
+  const handleNewChat = () => {
+    setActiveId(null)
     if (isMobile) setSidebarOpen(false)
   }
 
@@ -76,13 +81,15 @@ export default function App() {
     if (isMobile) setSidebarOpen(false)
   }
 
-  const handleSend = async (text) => {
+  const handleSend = async (text, attachmentIds = []) => {
     if (!activeId) {
+      skipNextLoad()                          // prevent DB load from racing with send
       pendingMessageRef.current = text
+      pendingAttachmentsRef.current = attachmentIds
       const conv = await create(model)
       setActiveId(conv.id)
     } else {
-      send(text)
+      send(text, attachmentIds)
     }
   }
 
@@ -133,6 +140,13 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-1">
+            {/* Export / Share — only when conversation has messages */}
+            <ExportMenu
+              messages={messages}
+              conversationId={activeId}
+              conversationTitle={activeConversation?.title || 'Conversation'}
+            />
+
             {/* Dark/Light toggle */}
             <button
               onClick={() => setDark(v => !v)}
@@ -164,7 +178,7 @@ export default function App() {
         {hasMessages || chatLoading ? (
           <>
             <ChatWindow messages={messages} streaming={streaming} loading={chatLoading} onEditMessage={editAndResend} />
-            <InputBar onSend={handleSend} onStop={stop} streaming={streaming} model={model} />
+            <InputBar onSend={handleSend} onStop={stop} streaming={streaming} model={model} conversationId={activeId} />
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-8 pb-10">
@@ -172,7 +186,7 @@ export default function App() {
               How can I help you today?
             </h2>
             <div className="w-full max-w-2xl">
-              <InputBar onSend={handleSend} onStop={stop} streaming={streaming} model={model} centered />
+              <InputBar onSend={handleSend} onStop={stop} streaming={streaming} model={model} conversationId={activeId} centered />
             </div>
           </div>
         )}

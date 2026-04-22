@@ -25,29 +25,16 @@ export function useConversations() {
   }, [refresh])
 
   const create = useCallback(async (model) => {
-    // Reuse existing empty chat instead of creating duplicate
-    const existing = conversations.find((c) => c.title === 'New Chat')
-    if (existing) {
-      setActiveId(existing.id)
-      // Move it to top
-      setConversations((prev) => [
-        existing,
-        ...prev.filter((c) => c.id !== existing.id),
-      ])
-      return existing
-    }
-
     setLoading(true)
     try {
       const conv = await createConversation(model)
-      // Add new chat to top
       setConversations((prev) => [conv, ...prev])
       setActiveId(conv.id)
       return conv
     } finally {
       setLoading(false)
     }
-  }, [conversations])
+  }, [])
 
   const remove = useCallback(async (id) => {
     await deleteConversation(id)

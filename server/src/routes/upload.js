@@ -1,13 +1,17 @@
 import { Router } from 'express'
 import multer from 'multer'
+import { createRequire } from 'module'
 import pool from '../db/connection.js'
+
+const require = createRequire(import.meta.url)
+const pdfParse = require('pdf-parse')
+const mammoth = require('mammoth')
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } })
 
 async function extractText(buffer, mimetype, filename) {
   if (mimetype === 'application/pdf' || filename.endsWith('.pdf')) {
-    const pdfParse = (await import('pdf-parse')).default
     const data = await pdfParse(buffer)
     return data.text
   }
@@ -16,7 +20,6 @@ async function extractText(buffer, mimetype, filename) {
     mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
     filename.endsWith('.docx')
   ) {
-    const mammoth = await import('mammoth')
     const result = await mammoth.extractRawText({ buffer })
     return result.value
   }
@@ -31,7 +34,7 @@ async function extractText(buffer, mimetype, filename) {
   return null
 }
 
-async function chunkText(text, chunkSize = 800, overlap = 100) {
+function chunkText(text, chunkSize = 800, overlap = 100) {
   const chunks = []
   let i = 0
   while (i < text.length) {
@@ -63,25 +66,20 @@ router.post('/', upload.single('file'), async (req, res) => {
   if (!conversation_id) return res.status(400).json({ error: 'conversation_id required' })
 
   try {
-    const content = await extractText(req.file.buffer, req.file.mimetype, req.file.originalname)
     const isImage = req.file.mimetype.startsWith('image/')
+    const content = isImage ? null : await extractText(req.file.buffer, req.file.mimetype, req.file.originalname)
 
     const result = await pool.query(
       `INSERT INTO attachments (conversation_id, file_name, file_type, content)
        VALUES ($1, $2, $3, $4) RETURNING id`,
-      [
-        conversation_id,
-        req.file.originalname,
-        req.file.mimetype,
-        isImage ? null : content,
-      ]
+      [conversation_id, req.file.originalname, req.file.mimetype, content]
     )
     const attachmentId = result.rows[0].id
 
-    // Try to store embeddings (if pgvector available + nomic-embed-text installed)
+    // Try to store vector embeddings (optional — needs pgvector + nomic-embed-text)
     if (content) {
       try {
-        const chunks = await chunkText(content)
+        const chunks = chunkText(content)
         for (let i = 0; i < chunks.length; i++) {
           const embedding = await getEmbedding(chunks[i])
           if (embedding) {
@@ -93,7 +91,7 @@ router.post('/', upload.single('file'), async (req, res) => {
           }
         }
       } catch {
-        // pgvector not available — skip embeddings
+        // pgvector not available — skip
       }
     }
 

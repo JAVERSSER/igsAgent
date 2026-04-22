@@ -5,20 +5,52 @@ export default function ChatWindow({ messages, streaming, loading, onEditMessage
   const bottomRef = useRef(null)
   const containerRef = useRef(null)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
+  const userScrolledUpRef = useRef(false)
+  const prevMsgCountRef = useRef(0)
+  const lastScrollTopRef = useRef(0)
+
+  const isNearBottom = useCallback(() => {
+    if (!containerRef.current) return true
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current
+    return scrollHeight - scrollTop - clientHeight < 100
+  }, [])
 
   const scrollToBottom = useCallback((smooth = false) => {
     bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' })
   }, [])
 
   useEffect(() => {
-    scrollToBottom(false)
+    const msgCount = messages.length
+
+    // New message pair added (user just sent) → always jump to bottom
+    if (msgCount > prevMsgCountRef.current + 1 || msgCount === 0) {
+      userScrolledUpRef.current = false
+    }
+    prevMsgCountRef.current = msgCount
+
+    // Auto-scroll only if user hasn't scrolled up
+    if (!userScrolledUpRef.current) {
+      scrollToBottom(false)
+    }
   }, [messages, scrollToBottom])
 
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+    const scrolledUp = scrollTop < lastScrollTopRef.current
+    lastScrollTopRef.current = scrollTop
+
     setShowScrollBtn(distanceFromBottom > 200)
+
+    // Any upward scroll (even small) while not near bottom → lock auto-scroll
+    if (scrolledUp && distanceFromBottom > 10) {
+      userScrolledUpRef.current = true
+    }
+    // User scrolled back to near-bottom → resume auto-scroll
+    if (distanceFromBottom < 30) {
+      userScrolledUpRef.current = false
+    }
   }, [])
 
   if (loading) {
@@ -63,7 +95,7 @@ export default function ChatWindow({ messages, streaming, loading, onEditMessage
 
       {showScrollBtn && (
         <button
-          onClick={() => scrollToBottom(true)}
+          onClick={() => { userScrolledUpRef.current = false; scrollToBottom(true) }}
           className="absolute bottom-4 left-1/2 -translate-x-1/2
             w-8 h-8 rounded-full bg-white dark:bg-[#2a2a2a] border border-[#d9d9d9] dark:border-[#3a3a3a] shadow-md
             flex items-center justify-center hover:bg-[#f4f4f4] dark:hover:bg-[#333] transition-all"

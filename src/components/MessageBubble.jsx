@@ -6,7 +6,28 @@ export default function MessageBubble({ message, streaming, onEdit }) {
   const [copied, setCopied] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editText, setEditText] = useState(message.content)
+  const [speaking, setSpeaking] = useState(false)
   const textareaRef = useRef(null)
+
+  // Stop speech if message unmounts
+  useEffect(() => () => window.speechSynthesis?.cancel(), [])
+
+  const toggleSpeak = () => {
+    if (speaking) {
+      window.speechSynthesis.cancel()
+      setSpeaking(false)
+      return
+    }
+    const text = message.content.replace(/[#*`_~]/g, '').trim()
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.rate = 1
+    utterance.pitch = 1
+    utterance.onend = () => setSpeaking(false)
+    utterance.onerror = () => setSpeaking(false)
+    window.speechSynthesis.cancel()
+    window.speechSynthesis.speak(utterance)
+    setSpeaking(true)
+  }
 
   useEffect(() => {
     if (editing && textareaRef.current) {
@@ -164,6 +185,28 @@ export default function MessageBubble({ message, streaming, onEdit }) {
                     </svg>
                     Copy
                   </>
+                )}
+              </button>
+
+              {/* Read aloud */}
+              <button
+                onClick={toggleSpeak}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] transition-colors
+                  ${speaking
+                    ? 'text-[#19c37d] bg-[#f0fdf4] dark:bg-[#19c37d]/10'
+                    : 'text-[#6b6b6b] dark:text-[#8e8ea0] hover:bg-[#f4f4f4] dark:hover:bg-[#2a2a2a] hover:text-[#0d0d0d] dark:hover:text-[#ececec]'
+                  }`}
+                title={speaking ? 'Stop' : 'Read aloud'}
+              >
+                {speaking ? (
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <rect x="6" y="6" width="4" height="12" rx="1" />
+                    <rect x="14" y="6" width="4" height="12" rx="1" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+                  </svg>
                 )}
               </button>
 
